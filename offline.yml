@@ -1,0 +1,69 @@
+---
+- name: make squid support offline
+  hosts: squid
+  connection: docker
+  gather_facts: no
+  tasks:
+  - name: install python
+    raw: apt-get update ; apt-get -y install python3
+    changed_when: False
+  - name: gather hosts which uses TLS from access log
+    shell: "sed -n -e 's/^.*CONNECT \\([^:]*\\):.*$/\\1/p' /var/log/squid/access.log | sort | uniq"
+    changed_when: false
+    check_mode: false
+    register: tls_hosts
+  - name: get ip address of nginx
+    shell: "echo $(getent hosts nginx | cut -d ' ' -f 1)"
+    changed_when: false
+    check_mode: false
+    register: nginx_addr
+  - name: setup hosts file for squid
+    copy:
+      content: "{{ nginx_addr.stdout_lines | first }} {{ tls_hosts.stdout_lines | join(' ') }}"
+      dest: /etc/squid/hosts-offline
+    notify: 'config changed'
+  - name: set hosts_file directive in squid.conf
+    lineinfile:
+      dest: /etc/squid/squid.conf
+      regexp: '^#? *hosts_file.*'
+      line: 'hosts_file /etc/squid/hosts-offline' 
+    notify: 'config changed'
+  - name: set sslproxy_cert_error directive in squid.conf
+    lineinfile:
+      dest: /etc/squid/squid.conf
+      regexp: '^#? *sslproxy_cert_error.*'
+      line: 'sslproxy_cert_error allow all' 
+    notify: 'config changed'
+  - name: set sslproxy_cert_adapt directive in squid.conf
+    lineinfile:
+      dest: /etc/squid/squid.conf
+      regexp: '^#? *sslproxy_cert_adapt.*'
+      line: 'sslproxy_cert_adapt setCommonName all' 
+    notify: 'config changed'
+  - name: set tls_outgoing_options directive in squid.conf
+    lineinfile:
+      dest: /etc/squid/squid.conf
+      regexp: '^#? *tls_outgoing_options.*'
+      line: 'tls_outgoing_options flags=DONT_VERIFY_PEER,DONT_VERIFY_DOMAIN' 
+    notify: 'config changed'
+  handlers:
+  - name: send HUP signal to recconfigure
+    shell: kill -HUP 1
+    listen: 'config changed'
+- name: set passwd to fake dockerhub
+  hosts: registry
+  connection: docker
+  gather_facts: no
+  tasks:
+  - name: install python
+    raw: apk update && apk add python3 py3-pip
+    changed_when: False
+  - name: install passlib
+    pip:
+      name: passlib
+  - name: Add a user to a password file and ensure permissions are set
+    community.general.htpasswd:
+      path: /auth/htpasswd
+      name: "{{ dockerhub_login_user }}"
+      crypt_scheme: bcrypt
+      password: "{{ dockerhub_login_password }}"

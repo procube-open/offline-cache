@@ -1,0 +1,33 @@
+version: '2'
+services:
+  squid:
+    image: procube/squid-bump-ssl:latest
+    container_name: squid
+    ports:
+      - "3128:3128"
+    volumes:
+      - "${HIVE_CONTEXT_DIR}/ca/cacert.pem:/etc/squid/cert/bump.crt"
+      - "${HIVE_CONTEXT_DIR}/ca/cakey.pem:/etc/squid/cert/bump.key"
+      - squid_cache:/var/spool/squid
+      - squid_ssldb:/var/lib/squid/ssl_db
+      - squid_log:/var/log/squid
+  nginx:
+    build: nginx
+    container_name: nginx
+  registry:
+    image: registry
+    container_name: registry
+    volumes:
+      - auth:/auth
+      - registry:/var/lib/registry
+    environment:
+      - REGISTRY_AUTH=htpasswd
+      - REGISTRY_AUTH_HTPASSWD_REALM="Registry Realm"
+      - REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd
+      - REGISTRY_HTTP_HOST="https://registry-1.docker.io"
+volumes:
+  squid_cache:
+  squid_ssldb:
+  squid_log:
+  registry:
+  auth:
