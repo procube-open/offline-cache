@@ -17,16 +17,11 @@
     changed_when: false
     check_mode: false
     register: nginx_addr
-  - name: setup hosts file for squid
-    copy:
-      content: "{{ nginx_addr.stdout_lines | first }} {{ tls_hosts.stdout_lines | join(' ') }}"
-      dest: /etc/squid/hosts-offline
-    notify: 'config changed'
-  - name: set hosts_file directive in squid.conf
+  - name: add entry TLS hosts into hosts file for squid
     lineinfile:
-      dest: /etc/squid/squid.conf
-      regexp: '^#? *hosts_file.*'
-      line: 'hosts_file /etc/squid/hosts-offline' 
+      insertafter: EOF
+      line: "{{ nginx_addr.stdout_lines | first }} {{ tls_hosts.stdout_lines | join(' ') }}"
+      dest: /etc/squid/hosts
     notify: 'config changed'
   - name: set sslproxy_cert_error directive in squid.conf
     lineinfile:
@@ -50,20 +45,3 @@
   - name: send HUP signal to recconfigure
     shell: kill -HUP 1
     listen: 'config changed'
-- name: set passwd to fake dockerhub
-  hosts: registry
-  connection: docker
-  gather_facts: no
-  tasks:
-  - name: install python
-    raw: apk update && apk add python3 py3-pip
-    changed_when: False
-  - name: install passlib
-    pip:
-      name: passlib
-  - name: Add a user to a password file and ensure permissions are set
-    community.general.htpasswd:
-      path: /auth/htpasswd
-      name: "{{ dockerhub_login_user }}"
-      crypt_scheme: bcrypt
-      password: "{{ dockerhub_login_password }}"

@@ -65,7 +65,10 @@ CONNECT メソッドの結果はキャッシュされず、毎回バックエン
 ### 問題点
 docker registry API では、パラメータをヘッダに含めるなどのロジックがあり、 URL → コンテンツのキャッシュだけでは対応できない。
 ### 対応
-偽のdocker registry を構築し、そこに必要なコンテナイメージを push しておく対応とした。
+透過プロキシとして動作する複製レジストリを構築し、ここに蓄積する動作とした。
+
+参考： https://matsuand.github.io/docs.docker.jp.onthefly/registry/recipes/mirror/
+
 
 ## HTTP/2 問題点と対応
 ### 問題点

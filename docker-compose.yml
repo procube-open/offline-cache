@@ -11,6 +11,7 @@ services:
       - squid_cache:/var/spool/squid
       - squid_ssldb:/var/lib/squid/ssl_db
       - squid_log:/var/log/squid
+      - squid_config:/etc/squid
   nginx:
     build: nginx
     container_name: nginx
@@ -18,16 +19,15 @@ services:
     image: registry
     container_name: registry
     volumes:
-      - auth:/auth
       - registry:/var/lib/registry
+      - registry_config:/etc/docker/registry
     environment:
-      - REGISTRY_AUTH=htpasswd
-      - REGISTRY_AUTH_HTPASSWD_REALM="Registry Realm"
-      - REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd
-      - REGISTRY_HTTP_HOST="https://registry-1.docker.io"
+      - REGISTRY_HTTP_HOST="http://registry-mirror.offline-cache"
 volumes:
   squid_cache:
   squid_ssldb:
   squid_log:
+  squid_config:
   registry:
+  registry_config:
   auth:

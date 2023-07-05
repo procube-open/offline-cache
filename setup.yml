@@ -1,0 +1,53 @@
+---
+- name: set-up mirror proxy for dockerhub
+  hosts: registry
+  connection: docker
+  gather_facts: no
+  tasks:
+  - name: install python
+    raw: apk update && apk add python3 py3-pip
+    changed_when: False
+  - name: Add a user to a password file and ensure permissions are set
+    template:
+      src: registry/config.yml
+      dest: /etc/docker/registry/config.yml
+    notify: 'registry config changed'
+  handlers:
+  - name: Restart services
+    community.docker.docker_compose:
+      project_src: .
+      services:
+      - registry
+      build: false
+      restarted: true
+    delegate_to: localhost
+    listen: 'registry config changed'
+- name: make squid support offline
+  hosts: squid
+  connection: docker
+  gather_facts: no
+  tasks:
+  - name: install python
+    raw: apt-get update ; apt-get -y install python3
+    changed_when: False
+  - name: get ip address of registry
+    shell: "echo $(getent hosts registry | cut -d ' ' -f 1)"
+    changed_when: false
+    check_mode: false
+    register: registry_addr
+  - name: setup hosts file for squid
+    copy:
+      content: |
+        {{ registry_addr.stdout_lines | first }} registry-mirror.offline-cache
+      dest: /etc/squid/hosts
+    notify: 'config changed'
+  - name: set hosts_file directive in squid.conf
+    lineinfile:
+      dest: /etc/squid/squid.conf
+      regexp: '^#? *hosts_file.*'
+      line: 'hosts_file /etc/squid/hosts' 
+    notify: 'config changed'
+  handlers:
+  - name: send HUP signal to recconfigure
+    shell: kill -HUP 1
+    listen: 'config changed'
