@@ -73,7 +73,7 @@ docker registry API では、パラメータをヘッダに含めるなどのロ
 ## HTTP/2 問題点と対応
 ### 問題点
 squid は HTTP/2 でアクセスした内容をキャッシュできない。yum の引数にURLを指定してインストールするパターンで発生した。
-問題となった ansible タスクの内容は以下である。
+問題となった ansible タスクの内容は以下である。zabbix のリポジトリが HTTP/2 に対応しているために問題が発生したと考えられる。
 
 ```
     - name: Install Zabbix Repo
@@ -90,3 +90,16 @@ squid は HTTP/2 でアクセスした内容をキャッシュできない。yum
 ### 対応
 今のところ対応策は見つかっていない。
 curl で http でアクセスしたところ、HTTP/2 ではなく HTTP1.1 になったので、 https → http に修正して回避した。
+
+## 最大 max/min age 問題点と対応
+### 問題点
+squid の  refresh_pattern ディレクティブでは expire の制御を指定するパラメータが最大１年間となっており、これをこえたパラメータを指定すると以下のワーニングメッセージとともに１年間に変更される。
+```
+WARNING: refresh_pattern minimum age too high. Cropped back to 1 year.
+WARNING: refresh_pattern maximum age too high. Cropped back to 1 year.
+```
+
+### 対応
+
+squid にパッチをあててこの機能を削除した。
+

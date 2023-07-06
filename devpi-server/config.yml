@@ -1,0 +1,9 @@
+---
+devpi-server:
+    host: 0.0.0.0
+    port: 80
+    serverdir: /var/lib/devpi-server
+    restrict-modify: root
+    type: mirror
+    mirror_url: "https://test.pypi.org/simple/"
+    volatile: false

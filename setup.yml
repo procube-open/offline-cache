@@ -22,7 +22,7 @@
       restarted: true
     delegate_to: localhost
     listen: 'registry config changed'
-- name: make squid support offline
+- name: make squid forward requests to regstry/devpi-server
   hosts: squid
   connection: docker
   gather_facts: no
@@ -35,10 +35,16 @@
     changed_when: false
     check_mode: false
     register: registry_addr
-  - name: setup hosts file for squid
+  - name: get ip address of devpi-server
+    shell: "echo $(getent hosts devpi-server | cut -d ' ' -f 1)"
+    changed_when: false
+    check_mode: false
+    register: devpi_server_addr
+  - name: register registry and devpi server hosts file
     copy:
       content: |
         {{ registry_addr.stdout_lines | first }} registry-mirror.offline-cache
+        {{ devpi_server_addr.stdout_lines | first }} devpi-server.offline-cache
       dest: /etc/squid/hosts
     notify: 'config changed'
   - name: set hosts_file directive in squid.conf

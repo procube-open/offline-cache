@@ -23,6 +23,12 @@ services:
       - registry_config:/etc/docker/registry
     environment:
       - REGISTRY_HTTP_HOST="http://registry-mirror.offline-cache"
+  devpi-server:
+    build: devpi-server
+    container_name: devpi-server
+    volumes:
+      - devpi_dir:/var/lib/devpi-server
+
 volumes:
   squid_cache:
   squid_ssldb:
@@ -30,4 +36,4 @@ volumes:
   squid_config:
   registry:
   registry_config:
-  auth:
+  devpi_dir:

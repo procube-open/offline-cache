@@ -1,4 +1,45 @@
 ---
+- name: make offline mode devpi-server for PyPi
+  hosts: devpi-server
+  connection: docker
+  gather_facts: no
+  tasks:
+  - name: add --offline-mode option to devpi-server
+    lineinfile:
+      regexp: "^command="
+      line: "command=/usr/local/bin/devpi-server --configfile /var/lib/devpi-server/config.yml --offline-mode"
+      dest: /var/lib/devpi-server/gen-config/supervisor-devpi.conf
+    notify: 'devpi-server config changed'
+  handlers:
+  - name: Restart services
+    community.general.supervisorctl:
+      name: devpi-server
+      state: restarted
+      config: /var/lib/devpi-server/gen-config/supervisord.conf
+    listen: 'devpi-server config changed'
+- name: make offline mode proxy for dockerhub
+  hosts: registry
+  connection: docker
+  gather_facts: no
+  tasks:
+  - name: install python
+    raw: apk update && apk add python3 py3-pip
+    changed_when: False
+  - name: remove proxy setting of registry
+    template:
+      src: registry/config-offline.yml
+      dest: /etc/docker/registry/config.yml
+    notify: 'registry config changed'
+  handlers:
+  - name: Restart services
+    community.docker.docker_compose:
+      project_src: .
+      services:
+      - registry
+      build: false
+      restarted: true
+    delegate_to: localhost
+    listen: 'registry config changed'
 - name: make squid support offline
   hosts: squid
   connection: docker
