@@ -53,6 +53,27 @@
       regexp: '^#? *hosts_file.*'
       line: 'hosts_file /etc/squid/hosts' 
     notify: 'config changed'
+  - name: create client cert directory
+    file:
+      path: /etc/squid/client_cert
+      state: directory
+      mode: "644"
+  - name: put client cert and key
+    blockinfile:
+      path: "/etc/squid/client_cert/{{ item.name }}"
+      block: "{{ item.content }}"
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK for {{ item.name }}"
+    loop:
+      - { name: client.crt, content: "{{ nssdc_client_cert }}" }
+      - { name: client.key, content: "{{ nssdc_client_key }}" }
+  - name: set client cert to squid
+    blockinfile:
+      path: /etc/squid/squid.conf
+      insertafter: "# tls_outgoing_options flags=DONT_VERIFY_PEER,DONT_VERIFY_DOMAIN"
+      block: |
+        tls_outgoing_options cert=/etc/squid/client_cert/client.crt key=/etc/squid/client_cert/client.key
+    notify: 'config changed'
   handlers:
   - name: send HUP signal to recconfigure
     shell: kill -HUP 1
