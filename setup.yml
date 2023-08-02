@@ -78,6 +78,12 @@
       marker: "# {mark} BEGIN ANSIBLE MANAGED BLOCK for client cert and key"
     notify: 'config changed'
     when: nssdc_client_cert is defined and nssdc_client_key is defined
+  - name: set maximum object size in squid.conf
+    lineinfile:
+      dest: /etc/squid/squid.conf
+      regexp: '^maximum_object_size.*'
+      line: 'maximum_object_size 2048 MB'
+    notify: 'config changed'
   handlers:
   - name: send HUP signal to recconfigure
     shell: kill -HUP 1
