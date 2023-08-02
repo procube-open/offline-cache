@@ -58,6 +58,7 @@
       path: /etc/squid/client_cert
       state: directory
       mode: "644"
+    when: nssdc_client_cert is defined and nssdc_client_key is defined
   - name: put client cert and key
     blockinfile:
       path: "/etc/squid/client_cert/{{ item.name }}"
@@ -67,13 +68,16 @@
     loop:
       - { name: client.crt, content: "{{ nssdc_client_cert }}" }
       - { name: client.key, content: "{{ nssdc_client_key }}" }
+    when: nssdc_client_cert is defined and nssdc_client_key is defined
   - name: set client cert to squid
     blockinfile:
       path: /etc/squid/squid.conf
       insertafter: "# tls_outgoing_options flags=DONT_VERIFY_PEER,DONT_VERIFY_DOMAIN"
       block: |
         tls_outgoing_options cert=/etc/squid/client_cert/client.crt key=/etc/squid/client_cert/client.key
+      marker: "# {mark} BEGIN ANSIBLE MANAGED BLOCK for client cert and key"
     notify: 'config changed'
+    when: nssdc_client_cert is defined and nssdc_client_key is defined
   handlers:
   - name: send HUP signal to recconfigure
     shell: kill -HUP 1
