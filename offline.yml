@@ -116,3 +116,16 @@
       marker: "# {mark} ANSIBLE MANAGED BLOCK for {{ item }}"
     loop: "{{ hostvars['squid'].file_paths.stdout_lines }}"
     notify: 'nginx config changed'
+  - name: create downloads directory
+    file:
+      path: /usr/share/nginx/html/downloads
+      state: directory
+      mode: "755"
+  - name: gather files through redirect
+    get_url:
+      url: "{{ item }}"
+      dest: /usr/share/nginx/html/downloads/
+      mode: '644'
+    loop: "{{ hostvars['squid'].redirect_urls.stdout_lines }}"
+    ignore_errors: yes
+  handlers:
