@@ -82,6 +82,16 @@
       regexp: '^#? *tls_outgoing_options.*'
       line: 'tls_outgoing_options flags=DONT_VERIFY_PEER,DONT_VERIFY_DOMAIN' 
     notify: 'config changed'
+  - name: gather URLs which return redirect from access log
+    shell: "sed -n -e 's/^.*GET \\([^\\?]*\\) HTTP\\/1\\.1. 30[0-9].*$/\\1/p' /var/log/squid/access.log | sort | uniq"
+    changed_when: false
+    check_mode: false
+    register: redirect_urls
+  - name: gather file paths
+    shell: "sed -n -e 's/^.*GET https:\\/\\/[^\\/]*\\(\\/[^\\?]*\\) HTTP\\/1\\.1. 30[0-9].*$/\\1/p' /var/log/squid/access.log | sort | uniq"
+    changed_when: false
+    check_mode: false
+    register: file_paths
   handlers:
   - name: send HUP signal to recconfigure
     shell: kill -HUP 1
