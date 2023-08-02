@@ -129,3 +129,6 @@
     loop: "{{ hostvars['squid'].redirect_urls.stdout_lines }}"
     ignore_errors: yes
   handlers:
+  - name: send HUP signal to recconfigure
+    shell: kill -HUP 1
+    listen: 'nginx config changed'
