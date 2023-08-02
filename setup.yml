@@ -84,6 +84,12 @@
       regexp: '^maximum_object_size.*'
       line: 'maximum_object_size 2048 MB'
     notify: 'config changed'
+  - name: set cache dir in squid.conf
+    lineinfile:
+      dest: /etc/squid/squid.conf
+      regexp: '^cache_dir.*'
+      line: 'cache_dir ufs /var/spool/squid 20000 16 256'
+    notify: 'config changed'
   handlers:
   - name: send HUP signal to recconfigure
     shell: kill -HUP 1
