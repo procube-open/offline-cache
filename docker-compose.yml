@@ -15,6 +15,9 @@ services:
   nginx:
     build: nginx
     container_name: nginx
+    volumes:
+      - nginx_config:/etc/nginx
+      - nginx_data:/usr/share/nginx/html
   registry:
     image: registry
     container_name: registry
@@ -37,3 +40,5 @@ volumes:
   registry:
   registry_config:
   devpi_dir:
+  nginx_config:
+  nginx_data:
