@@ -4,9 +4,6 @@
   connection: docker
   gather_facts: no
   tasks:
-  - name: install python
-    raw: apt-get update ; apt-get -y install python3
-    changed_when: False
   - name: delete squid hosts file
     file:
       path: /etc/squid/hosts
