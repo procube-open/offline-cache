@@ -69,26 +69,23 @@
       - { name: client.crt, content: "{{ nssdc_client_cert }}" }
       - { name: client.key, content: "{{ nssdc_client_key }}" }
     when: nssdc_client_cert is defined and nssdc_client_key is defined
-  - name: set client cert to squid
-    blockinfile:
-      path: /etc/squid/squid.conf
-      insertafter: "# tls_outgoing_options flags=DONT_VERIFY_PEER,DONT_VERIFY_DOMAIN"
-      block: |
-        tls_outgoing_options cert=/etc/squid/client_cert/client.crt key=/etc/squid/client_cert/client.key
-      marker: "# {mark} BEGIN ANSIBLE MANAGED BLOCK for client cert and key"
+  - name: setup squid conf for nssdc client cert
+    lineinfile:
+      dest: /etc/squid/squid.conf
+      regexp: "{{ item.key }}"
+      line: "{{ item.value }}"
+    loop:
+    - { key: '# tls_outgoing_options flags=DONT_VERIFY_PEER,DONT_VERIFY_DOMAIN', value: 'tls_outgoing_options cert=/etc/squid/client_cert/client.crt key=/etc/squid/client_cert/client.key' }
     notify: 'config changed'
     when: nssdc_client_cert is defined and nssdc_client_key is defined
-  - name: set maximum object size in squid.conf
+  - name: setup squid conf
     lineinfile:
       dest: /etc/squid/squid.conf
-      regexp: '^maximum_object_size.*'
-      line: 'maximum_object_size 2048 MB'
-    notify: 'config changed'
-  - name: set cache dir in squid.conf
-    lineinfile:
-      dest: /etc/squid/squid.conf
-      regexp: '^cache_dir.*'
-      line: 'cache_dir ufs /var/spool/squid 20000 16 256'
+      regexp: "{{ item.key }}"
+      line: "{{ item.value }}"
+    loop:
+    - { key: '^maximum_object_size.*', value: 'maximum_object_size 2048 MB' }
+    - { key: '^cache_dir.*', value: 'cache_dir ufs /var/spool/squid 20000 16 256' }
     notify: 'config changed'
   handlers:
   - name: send HUP signal to recconfigure

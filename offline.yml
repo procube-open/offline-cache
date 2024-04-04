@@ -53,45 +53,60 @@
     changed_when: false
     check_mode: false
     register: tls_hosts
+  - name: gather URLs which return redirect from access log
+    shell: "sed -n -e 's/^.*GET \\([^\\?]*\\) HTTP\\/1\\.1. 30[0-9].*$/\\1/p' /var/log/squid/access.log | sort | uniq"
+    changed_when: false
+    check_mode: false
+    register: redirect_urls
+  - name: gather file paths which return redirect from access log (http)
+    shell: "sed -n -e 's/^.*GET http:\\/\\/[^\\/]*\\(\\/[^\\?]*\\) HTTP\\/1\\.1. 30[0-9].*$/\\1/p' /var/log/squid/access.log | sort | uniq"
+    changed_when: false
+    check_mode: false
+    register: file_paths_http
+  - name: gather file paths which return redirect from access log (https)
+    shell: "sed -n -e 's/^.*GET https:\\/\\/[^\\/]*\\(\\/[^\\?]*\\) HTTP\\/1\\.1. 30[0-9].*$/\\1/p' /var/log/squid/access.log | sort | uniq"
+    changed_when: false
+    check_mode: false
+    register: file_paths_https
+  - name: gather directory paths which return redirect from access log
+    shell: "sed -n -e 's/^.*GET https*:\\/\\/[^\\/]*\\(\\/[^\\?]*\\)\\/[^\\?]* HTTP\\/1\\.1. 30[0-9].*$/\\1/p' /var/log/squid/access.log | sort | uniq"
+    changed_when: false
+    check_mode: false
+    register: directory_paths
+  - name: gather domains which return redirect from access log
+    shell: "sed -n -e 's/^.*GET https*:\\/\\/\\([^\\/]*\\)\\/[^\\?]* HTTP\\/1\\.1. 30[0-9].*$/\\1/p' /var/log/squid/access.log | sort | uniq"
+    changed_when: false
+    check_mode: false
+    register: redirect_domains
   - name: get ip address of nginx
     shell: "echo $(getent hosts nginx | cut -d ' ' -f 1)"
     changed_when: false
     check_mode: false
     register: nginx_addr
-  - name: add entry TLS hosts into hosts file for squid
+  - name: add entry TLS hosts and redirect domains into hosts file for squid
     lineinfile:
       insertafter: EOF
-      line: "{{ nginx_addr.stdout_lines | first }} {{ tls_hosts.stdout_lines | join(' ') }}"
+      line: "{{ nginx_addr.stdout_lines | first }} {{ ( tls_hosts.stdout_lines | union(redirect_domains.stdout_lines) ) | join(' ') }}"
       dest: /etc/squid/hosts
     notify: 'config changed'
   - name: set sslproxy_cert_error directive in squid.conf
     lineinfile:
       dest: /etc/squid/squid.conf
       regexp: '^#? *sslproxy_cert_error.*'
-      line: 'sslproxy_cert_error allow all' 
+      line: 'sslproxy_cert_error allow all'
     notify: 'config changed'
   - name: set sslproxy_cert_adapt directive in squid.conf
     lineinfile:
       dest: /etc/squid/squid.conf
       regexp: '^#? *sslproxy_cert_adapt.*'
-      line: 'sslproxy_cert_adapt setCommonName all' 
+      line: 'sslproxy_cert_adapt setCommonName all'
     notify: 'config changed'
   - name: set tls_outgoing_options directive in squid.conf
     lineinfile:
       dest: /etc/squid/squid.conf
       regexp: '^#? *tls_outgoing_options.*'
-      line: 'tls_outgoing_options flags=DONT_VERIFY_PEER,DONT_VERIFY_DOMAIN' 
+      line: 'tls_outgoing_options flags=DONT_VERIFY_PEER,DONT_VERIFY_DOMAIN'
     notify: 'config changed'
-  - name: gather URLs which return redirect from access log
-    shell: "sed -n -e 's/^.*GET \\([^\\?]*\\) HTTP\\/1\\.1. 30[0-9].*$/\\1/p' /var/log/squid/access.log | sort | uniq"
-    changed_when: false
-    check_mode: false
-    register: redirect_urls
-  - name: gather file paths
-    shell: "sed -n -e 's/^.*GET https:\\/\\/[^\\/]*\\(\\/[^\\?]*\\) HTTP\\/1\\.1. 30[0-9].*$/\\1/p' /var/log/squid/access.log | sort | uniq"
-    changed_when: false
-    check_mode: false
-    register: file_paths
   handlers:
   - name: send HUP signal to recconfigure
     shell: kill -HUP 1
@@ -109,24 +124,69 @@
       path: "/etc/nginx/conf.d/default.conf"
       insertafter: "ssl_certificate_key /etc/ssl/private/domain.key;"
       block: |
-        {% set filename = item.split('/')[-1] %}
+        {% filter indent(width=4, first=true) %}
         location {{ item }} {
-          alias /usr/share/nginx/html/downloads/{{ filename }};
+          alias /usr/share/nginx/html/downloads{{ item }};
         }
-      marker: "# {mark} ANSIBLE MANAGED BLOCK for {{ item }}"
-    loop: "{{ hostvars['squid'].file_paths.stdout_lines }}"
+        {% endfilter %}
+      marker: "# {mark} add location directive for {{ item }}"
+    loop: "{{ hostvars['squid'].file_paths_https.stdout_lines }}"
+    notify: 'nginx config changed'
+  - name: insert server directive for port 80
+    blockinfile:
+      path: "/etc/nginx/conf.d/default.conf"
+      insertbefore: BOF
+      block: |
+        server {
+          listen 80;
+          server_name for-redirect-downloads;
+        }
+      marker: "# {mark} add server directive for port 80"
+    notify: 'nginx config changed'
+  - name: insert location directive for port 80
+    blockinfile:
+      path: "/etc/nginx/conf.d/default.conf"
+      insertafter: "server_name for-redirect-downloads"
+      block: |
+        {% filter indent(width=4, first=true) %}
+        location {{ item }} {
+          alias /usr/share/nginx/html/downloads{{ item }};
+        }
+        {% endfilter %}
+      marker: "# {mark} add location directive for {{ item }}"
+    loop: "{{ hostvars['squid'].file_paths_http.stdout_lines }}"
     notify: 'nginx config changed'
   - name: create downloads directory
     file:
       path: /usr/share/nginx/html/downloads
       state: directory
       mode: "755"
+  - name: check existence of directory for redirect file path
+    stat:
+      path: /usr/share/nginx/html/downloads{{ item }}
+    loop: "{{ hostvars['squid'].directory_paths.stdout_lines }}"
+    register: chk_dir
+  - name: create downloads directory for each contents if not exists
+    file:
+      path: /usr/share/nginx/html/downloads{{ item.item }}
+      state: directory
+      mode: "755"
+      recurse: yes
+    when: not (item.stat.exists)
+    loop: "{{ chk_dir.results }}"
+  - name: check existence of download contents for redirect
+    stat:
+      path: /usr/share/nginx/html/downloads/{{ item | regex_replace('^https*://[^/]+/(.*)$','\1') }}
+    loop: "{{ hostvars['squid'].redirect_urls.stdout_lines }}"
+    register: chk_contents
   - name: gather files through redirect
     get_url:
-      url: "{{ item }}"
-      dest: /usr/share/nginx/html/downloads/
+      url: "{{ item.item }}"
+      dest: "{{ item.invocation.module_args.path }}"
       mode: '644'
-    loop: "{{ hostvars['squid'].redirect_urls.stdout_lines }}"
+      force: false
+    when: not (item.stat.exists)
+    loop: "{{ chk_contents.results }}"
     ignore_errors: yes
   handlers:
   - name: send HUP signal to recconfigure

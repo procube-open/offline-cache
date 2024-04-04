@@ -33,11 +33,11 @@
     changed_when: false
     check_mode: false
     register: tls_hosts
-  - name: edit tls_hosts
-    shell: "echo {{ tls_hosts.stdout_lines | join(' ') }} | sed -e 's/registry-mirror\\.offline-cache//g' | sed -e 's/devpi-server\\.offline-cache//g'"
+  - name: gather domains which return redirect from access log
+    shell: "sed -n -e 's/^.*GET https*:\\/\\/\\([^\\/]*\\)\\/[^\\?]* HTTP\\/1\\.1. 30[0-9].*$/\\1/p' /var/log/squid/access.log | sort | uniq"
     changed_when: false
     check_mode: false
-    register: edited_tls_hosts
+    register: redirect_domains
   - name: add entry into hosts file for squid
     lineinfile:
       insertafter: EOF
@@ -48,7 +48,7 @@
         address: "{{ registry_addr.stdout_lines | first }}"
       - name: devpi-server.offline-cache
         address: "{{ devpi_server_addr.stdout_lines | first }}"
-      - name: "{{ edited_tls_hosts.stdout_lines | first }}"
+      - name: "{{ tls_hosts.stdout_lines | union(redirect_domains.stdout_lines) | join(' ') }}"
         address: "{{ nginx_addr.stdout_lines | first }}"
     notify: 'config changed'
   handlers:
