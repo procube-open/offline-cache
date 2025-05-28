@@ -14,11 +14,11 @@
     notify: 'registry config changed'
   handlers:
   - name: Restart services
-    community.docker.docker_compose:
+    community.docker.docker_compose_v2:
       project_src: .
       services:
       - registry
-      build: false
+      build: never
       restarted: true
     delegate_to: localhost
     listen: 'registry config changed'
